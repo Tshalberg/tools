@@ -217,12 +217,20 @@ class Geo():
             print "set mode=0 or mode=1" 
 
 def plot_basis(A, ax, center=np.zeros(3), length=0.1):
-    colors = ["r", "g", "b"]
-    for i in range(3):
-        v = A[:,i]
-        q = np.hstack([center, v])
-        ax.quiver(*q.T, color=colors[i], length=length)
+    import matplotlib as mpl
+    v = mpl.__version__
 
+    colors = ["r", "g", "b"]
+    if int(v.split(".")[0]) > 2:
+        for i in range(3):
+            v = A[:,i]
+            q = np.hstack([center, v])
+            ax.quiver(*q.T, color=colors[i], length=length)
+    else:
+        for i in range(3):
+            v = A[:,i]
+            q = np.hstack([center+v*length, v])
+            ax.quiver(*q.T, color=colors[i], length=length)
 
 def make_circle(center=np.zeros(3), r=1.0, N=50, tmin=0, tmax=2*np.pi, rotation=None):
     t = np.linspace(tmin, tmax, N)
