@@ -221,7 +221,7 @@ def plot_basis(A, ax, center=np.zeros(3), length=0.1):
     v = mpl.__version__
 
     colors = ["r", "g", "b"]
-    if int(v.split(".")[0]) > 2:
+    if int(v.split(".")[0]) >= 2:
         for i in range(3):
             v = A[:,i]
             q = np.hstack([center, v])
