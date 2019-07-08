@@ -216,6 +216,31 @@ class Geo():
             print "wrong mode %s " % mode
             print "set mode=0 or mode=1" 
 
+
+def calc_angle(v1, v2, res="deg"):
+    if res == "deg":
+        return np.arccos(v1.dot(v2)/(norm(v1)*norm(v2)))*180/np.pi
+    elif res == "rad":
+        return np.arccos(v1.dot(v2)/(norm(v1)*norm(v2)))
+
+
+def calc_thetas(pmtCenter, geoCenter, geoR, A):
+    b = norm(pmtCenter - geoCenter)
+    a = np.sqrt(geoR**2 - b**2)
+
+    Ax = A[:,0]
+    p1 = pmtCenter + a*Ax
+    p2 = pmtCenter - a*Ax
+
+    v1 = geoCenter - p1
+    v2 = geoCenter - p2
+
+    tmin = calc_angle(Ax, v1, res="rad")
+    tmax =  calc_angle(Ax, v2, res="rad")
+
+    return tmin, tmax
+
+
 def plot_basis(A, ax, center=np.zeros(3), length=0.1):
     import matplotlib as mpl
     v = mpl.__version__
