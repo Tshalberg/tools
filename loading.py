@@ -18,24 +18,29 @@ def load_file(fn, specific_keys=None, pulse=False, verbose=False):
         # Get all available keys from hdf5 file
         f = h5py.File(fn, 'r')
         keys = list(f.keys())
+
         # Filter out unwanted keys like __I3Index__
         if pulse:
             keys = [k for k in keys if "__" not in k]
         else:
             keys = [k for k in keys if "__" not in k and "MonopodFitFinal_fit" not in k]
-
+    # print keys
     data = dict()
 
     t_tot  = 0
     times = dict()
     for key in keys:
-        t1 = time.time()
-        df = pd.read_hdf(fn, key=key)
-        data[key] = df
-        t2 = time.time()
-        tdiff = t2-t1
-        times[key] = tdiff
-        t_tot += tdiff
+        # print key
+        try:
+            t1 = time.time()
+            df = pd.read_hdf(fn, key=key, mode="r")
+            data[key] = df
+            t2 = time.time()
+            tdiff = t2-t1
+            times[key] = tdiff
+            t_tot += tdiff
+        except:
+            print "Error with key: ", key
 
     # Check if all keys have been loaded
     assert set(keys) == set(data.keys()), "Could not find all expected tables, missing %s" % (set(keys)-set(data.keys()))
@@ -112,3 +117,46 @@ def load_multiple_folders(folders, specific_keys=None, pulse=False, verbose=Fals
 
     return data
 
+
+def parse_outputfile(fn):
+    assert (".out" in fn)
+    ids_str = ""
+    ids = []
+    positions_str = ""
+    positions = []
+    info_str = ""
+    infos = []
+    kpos = "positions: "
+    kid = "string_dom: "
+    kinfo = "info: "
+    with open(fn, "rb") as f:
+        for line in f.readlines():
+            if kpos in line:
+                positions_str = line.replace(kpos, "")
+                positions.append(np.fromstring(positions_str, sep=" "))
+                
+            if kid in line:
+                ids_str = line.replace(kid, "")
+                ids.append(np.fromstring(ids_str, sep=" "))
+                
+            if kinfo in line:
+                info_str = line.replace(kinfo, "")
+                infos.append(np.fromstring(info_str, sep=" "))
+
+    positions = np.array(positions)
+    ids = np.array(ids)
+    infos = np.array(infos)
+
+    return positions, ids, infos
+
+
+def load_I3Geometry(fn):
+    from icecube import dataio, dataclasses, icetray
+
+    f = dataio.I3File(fn)
+    frame = f.pop_frame()
+
+    geo = frame["I3Geometry"]
+    modulegeo = frame["I3ModuleGeoMap"]
+
+    return geo.omgeo, modulegeo

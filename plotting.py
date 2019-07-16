@@ -2,8 +2,9 @@
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-from utils.plotting.standard_modules import *
-from utils.plotting.percentile import plot_y_percentiles 
+from mpl_toolkits.mplot3d import Axes3D
+# from utils.plotting.standard_modules import *
+# from utils.plotting.percentile import plot_y_percentiles 
 from matplotlib.backends.backend_pdf import PdfPages
 import os
 
@@ -392,8 +393,10 @@ def plot_LLH_scan(data, event, pair, fit, N=30, vmax=30, figname="LLH_scan", dra
         p2s.append(p[p2])
 
     # Get true parameters
-    xtrue = dat[i]["MCNeutrino"][p1].values[0]
-    ytrue = dat[i]["MCNeutrino"][p2].values[0]
+    # xtrue = dat[i]["MCNeutrino"][p1].values[0]
+    # ytrue = dat[i]["MCNeutrino"][p2].values[0]
+    xtrue = dat[i]["I3MCTree"].iloc[0][p1]#.values[0]
+    ytrue = dat[i]["I3MCTree"].iloc[0][p2]#.values[0]
     
     # Rearange into grids
     p1s = np.array(p1s)
@@ -625,3 +628,17 @@ def plot_LLH_scan_llhrepeat(data, event, pair, N=30, vmax=30, figname="LLH_scan"
     plt.legend()
     plt.tight_layout()
     plt.savefig("plots/LLH_scans/{}_{}_{}_{}".format(figname, event, p1, p2))
+
+
+
+def make_fig_3D(figsize=(8,8)):
+
+    fig = plt.figure(figsize=figsize)
+    ax = fig.add_subplot(111, projection="3d")
+
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    ax.set_zlabel("z")
+
+    return ax
+

@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import math, random
+from icecube import dataio, dataclasses, icetray
+from loading import load_I3Geometry
 
 class Photons():
     def __init__(self, positions, ids, infos):
@@ -215,6 +217,189 @@ class Geo():
         else:
             print "wrong mode %s " % mode
             print "set mode=0 or mode=1" 
+
+
+def set_axes_radius(ax, origin, radius):
+    ax.set_xlim3d([origin[0] - radius, origin[0] + radius])
+    ax.set_ylim3d([origin[1] - radius, origin[1] + radius])
+    ax.set_zlim3d([origin[2] - radius, origin[2] + radius])
+
+def set_axes_equal(ax):
+    '''
+    Taken from: https://stackoverflow.com/a/50664367
+
+    Make axes of 3D plot have equal scale so that spheres appear as spheres,
+    cubes as cubes, etc..  This is one possible solution to Matplotlib's
+    ax.set_aspect('equal') and ax.axis('equal') not working for 3D.
+
+    Input
+      ax: a matplotlib axis, e.g., as output from plt.gca().
+    '''
+
+    limits = np.array([
+        ax.get_xlim3d(),
+        ax.get_ylim3d(),
+        ax.get_zlim3d(),
+    ])
+
+    origin = np.mean(limits, axis=1)
+    radius = 0.5 * np.max(np.abs(limits[:, 1] - limits[:, 0]))
+    set_axes_radius(ax, origin, radius)
+
+def I3OrientationToMatrix(ori):
+    x = np.array([ori.up.x, ori.up.y, ori.up.z])
+    y = np.array([ori.right.x, ori.right.y, ori.right.z])
+    z = np.array([ori.dir.x, ori.dir.y, ori.dir.z])
+    return np.array([-x, -y, z]).T
+
+class I3Geometry():
+    def __init__(self, fn):
+        omgeo, modulegeo = load_I3Geometry(fn)
+        self.omgeo = omgeo
+        self.modulegeo = modulegeo
+        self.omkeys = omgeo.keys()
+        self.omkeysArr = np.array(self.omkeys)
+        self.Nkeys = len(self.omkeys)
+        self.zShift = 0.01
+
+    def get_geo(self, string=1, om=1, pmt=None):
+        if pmt is None:
+            mask = (self.omkeysArr[:,0] == string) & (self.omkeysArr[:,1] == om)
+        else:
+            mask = (self.omkeysArr[:,0] == string) & (self.omkeysArr[:,1] == om) & (self.omkeysArr[:,2] == pmt)
+
+        omgeos = []
+        inds = np.arange(len(self.omkeysArr))[mask]
+        for ind in inds:
+            omgeos.append(self.omgeo[self.omkeys[ind]])
+        modulegeo = self.modulegeo[dataclasses.ModuleKey(string, om)]
+
+        return omgeos, modulegeo
+
+
+    def plot_pmt(self, ax, string=1, om=1, pmt=None, N=50, qlength=0.02):
+        if pmt is None:
+            mask = (self.omkeysArr[:,0] == string) & (self.omkeysArr[:,1] == om)
+        else:
+            mask = (self.omkeysArr[:,0] == string) & (self.omkeysArr[:,1] == om) & (self.omkeysArr[:,2] == pmt)
+
+        inds = np.arange(len(self.omkeysArr))[mask]
+        for ind in inds:
+            key = self.omkeys[ind]
+            pmt = self.omgeo[key]
+            ori    = pmt.orientation
+            A = I3OrientationToMatrix(ori)
+            r = np.sqrt(pmt.area/np.pi)
+            pmtDir = A[:,2]
+            pmtCenter = np.array(pmt.position)
+            pmtCenter[2] += self.zShift*pmtDir[2]/abs(pmtDir[2])
+
+            Cpmt = make_circle(center=pmtCenter, r=r, rotation=A, N=N)
+            q = np.hstack([pmtCenter, pmtDir])
+
+            ax.plot(*Cpmt.T, c="g")
+            ax.quiver(*q, length=qlength)
+
+        set_axes_equal(ax)
+
+
+    def get_pmt_circles(self, string=1, om=1, pmt=None, N=50, qlength=0.02, zShift=None):
+        if pmt is None:
+            mask = (self.omkeysArr[:,0] == string) & (self.omkeysArr[:,1] == om)
+        else:
+            mask = (self.omkeysArr[:,0] == string) & (self.omkeysArr[:,1] == om) & (self.omkeysArr[:,2] == pmt)
+
+        if zShift is None:
+            zShift = self.zShift
+
+        circles = []
+        inds = np.arange(len(self.omkeysArr))[mask]
+        for ind in inds:
+            key = self.omkeys[ind]
+            pmt = self.omgeo[key]
+            ori    = pmt.orientation
+            A = I3OrientationToMatrix(ori)
+            r = np.sqrt(pmt.area/np.pi)
+            pmtDir = A[:,2]
+            pmtCenter = np.array(pmt.position)
+            pmtCenter[2] += zShift*pmtDir[2]/abs(pmtDir[2])
+
+            Cpmt = make_circle(center=pmtCenter, r=r, rotation=A, N=N)
+            circles.append(Cpmt)
+        return circles
+
+
+
+def plot_dir_scan(dirScan, Geo, probName, cmap="plasma"):
+    from numpy.linalg import norm
+
+    omgeos, modulegeo = Geo.get_geo(93, 5, 0)
+    geoCenter = modulegeo.pos
+    geoR      = modulegeo.radius
+    pmtCenter = omgeos[0].position
+    pmtR = np.sqrt(omgeos[0].area/np.pi)
+
+    Arot = I3OrientationToMatrix(omgeos[0].orientation)
+    Cpmt = make_circle(center=pmtCenter, r=pmtR, rotation=Arot)
+
+    pmtHits = dirScan["pmtHit"].values
+    mask = pmtHits != 0
+    pPos = dirScan[["posx", "posy", "posz"]].values.copy() - pmtCenter
+    pDir = dirScan[["dirx", "diry", "dirz"]].values.copy()
+    prob = dirScan[probName].values.copy()
+    prob[mask] = 0
+
+    nx = Arot[:,0]
+    anglesPos = np.arccos(nx.dot(pPos.T)/norm(pPos, axis=1))*180/np.pi - 90
+    anglesDir = np.arccos(nx.dot(pDir.T)/norm(pDir, axis=1))*180/np.pi - 90
+
+
+    vmin = 0#prob[prob>1e-8].min() #- 0.05
+    vmax = prob.max()
+    vmin, vmax
+
+    nx, ny = 200, 200
+    anglesPos = np.reshape(anglesPos, (nx, ny))
+    anglesDir = np.reshape(anglesDir, (nx, ny))
+    prob = np.reshape(prob, (nx, ny))
+
+    plt.figure()
+    plt.pcolormesh(anglesPos, anglesDir, prob, vmin=vmin, vmax=vmax, cmap=cmap)
+    plt.colorbar()
+
+    # plt.title("Detection Probability")
+    plt.title(probName)
+    plt.xlabel(r"$\theta_{pos}$", size=15)
+    plt.ylabel(r"$\theta_{dir}$", size=15)
+
+
+
+def colormap_to_plotly(cm_name):
+    import matplotlib
+    from matplotlib import cm
+    import numpy as np
+
+    plasma_cmap = matplotlib.cm.get_cmap(cm_name)
+
+    plasma_rgb = []
+    norm = matplotlib.colors.Normalize(vmin=0, vmax=255)
+    for i in range(0, 255):
+        k = matplotlib.colors.colorConverter.to_rgb(plasma_cmap(norm(i)))
+        plasma_rgb.append(k)
+
+    def matplotlib_to_plotly(cmap, pl_entries):
+        h = 1.0/(pl_entries-1)
+        pl_colorscale = []
+
+        for k in range(pl_entries):
+            C = map(np.uint8, np.array(cmap(k*h)[:3])*255)
+            pl_colorscale.append([k*h, 'rgb'+str((C[0], C[1], C[2]))])
+
+        return pl_colorscale
+
+    plasma = matplotlib_to_plotly(plasma_cmap, 255)
+    
+    return plasma
 
 
 def calc_angle(v1, v2, res="deg"):
@@ -480,32 +665,7 @@ def find_pmt(p_pos, p_dir, geos):
     return foundIntersection
 
 
-def set_axes_radius(ax, origin, radius):
-    ax.set_xlim3d([origin[0] - radius, origin[0] + radius])
-    ax.set_ylim3d([origin[1] - radius, origin[1] + radius])
-    ax.set_zlim3d([origin[2] - radius, origin[2] + radius])
 
-def set_axes_equal(ax):
-    '''
-    Taken from: https://stackoverflow.com/a/50664367
-
-    Make axes of 3D plot have equal scale so that spheres appear as spheres,
-    cubes as cubes, etc..  This is one possible solution to Matplotlib's
-    ax.set_aspect('equal') and ax.axis('equal') not working for 3D.
-
-    Input
-      ax: a matplotlib axis, e.g., as output from plt.gca().
-    '''
-
-    limits = np.array([
-        ax.get_xlim3d(),
-        ax.get_ylim3d(),
-        ax.get_zlim3d(),
-    ])
-
-    origin = np.mean(limits, axis=1)
-    radius = 0.5 * np.max(np.abs(limits[:, 1] - limits[:, 0]))
-    set_axes_radius(ax, origin, radius)
 
 
 def fibonacci_sphere(samples=1,randomize=True):
