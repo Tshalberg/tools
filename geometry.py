@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import math, random
 from icecube import dataio, dataclasses, icetray
-from loading import load_I3Geometry
+
 
 class Photons():
     def __init__(self, positions, ids, infos):
@@ -252,83 +252,88 @@ def I3OrientationToMatrix(ori):
     z = np.array([ori.dir.x, ori.dir.y, ori.dir.z])
     return np.array([-x, -y, z]).T
 
-class I3Geometry():
-    def __init__(self, fn):
-        omgeo, modulegeo = load_I3Geometry(fn)
-        self.omgeo = omgeo
-        self.modulegeo = modulegeo
-        self.omkeys = omgeo.keys()
-        self.omkeysArr = np.array(self.omkeys)
-        self.Nkeys = len(self.omkeys)
-        self.zShift = 0.01
+def I3DirToVec(I3Dir):
+    return np.array([I3Dir.x, I3Dir.y, I3Dir.z])
 
-    def get_geo(self, string=1, om=1, pmt=None):
-        if pmt is None:
-            mask = (self.omkeysArr[:,0] == string) & (self.omkeysArr[:,1] == om)
-        else:
-            mask = (self.omkeysArr[:,0] == string) & (self.omkeysArr[:,1] == om) & (self.omkeysArr[:,2] == pmt)
+try:
+    class I3Geometry():
+        from loading import load_I3Geometry
+        def __init__(self, fn):
+            omgeo, modulegeo = load_I3Geometry(fn)
+            self.omgeo = omgeo
+            self.modulegeo = modulegeo
+            self.omkeys = omgeo.keys()
+            self.omkeysArr = np.array(self.omkeys)
+            self.Nkeys = len(self.omkeys)
+            self.zShift = 0.01
 
-        omgeos = []
-        inds = np.arange(len(self.omkeysArr))[mask]
-        for ind in inds:
-            omgeos.append(self.omgeo[self.omkeys[ind]])
-        modulegeo = self.modulegeo[dataclasses.ModuleKey(string, om)]
+        def get_geo(self, string=1, om=1, pmt=None):
+            if pmt is None:
+                mask = (self.omkeysArr[:,0] == string) & (self.omkeysArr[:,1] == om)
+            else:
+                mask = (self.omkeysArr[:,0] == string) & (self.omkeysArr[:,1] == om) & (self.omkeysArr[:,2] == pmt)
 
-        return omgeos, modulegeo
+            omgeos = []
+            inds = np.arange(len(self.omkeysArr))[mask]
+            for ind in inds:
+                omgeos.append(self.omgeo[self.omkeys[ind]])
+            modulegeo = self.modulegeo[dataclasses.ModuleKey(string, om)]
 
-
-    def plot_pmt(self, ax, string=1, om=1, pmt=None, N=50, qlength=0.02):
-        if pmt is None:
-            mask = (self.omkeysArr[:,0] == string) & (self.omkeysArr[:,1] == om)
-        else:
-            mask = (self.omkeysArr[:,0] == string) & (self.omkeysArr[:,1] == om) & (self.omkeysArr[:,2] == pmt)
-
-        inds = np.arange(len(self.omkeysArr))[mask]
-        for ind in inds:
-            key = self.omkeys[ind]
-            pmt = self.omgeo[key]
-            ori    = pmt.orientation
-            A = I3OrientationToMatrix(ori)
-            r = np.sqrt(pmt.area/np.pi)
-            pmtDir = A[:,2]
-            pmtCenter = np.array(pmt.position)
-            pmtCenter[2] += self.zShift*pmtDir[2]/abs(pmtDir[2])
-
-            Cpmt = make_circle(center=pmtCenter, r=r, rotation=A, N=N)
-            q = np.hstack([pmtCenter, pmtDir])
-
-            ax.plot(*Cpmt.T, c="g")
-            ax.quiver(*q, length=qlength)
-
-        set_axes_equal(ax)
+            return omgeos, modulegeo
 
 
-    def get_pmt_circles(self, string=1, om=1, pmt=None, N=50, qlength=0.02, zShift=None):
-        if pmt is None:
-            mask = (self.omkeysArr[:,0] == string) & (self.omkeysArr[:,1] == om)
-        else:
-            mask = (self.omkeysArr[:,0] == string) & (self.omkeysArr[:,1] == om) & (self.omkeysArr[:,2] == pmt)
+        def plot_pmt(self, ax, string=1, om=1, pmt=None, N=50, qlength=0.02):
+            if pmt is None:
+                mask = (self.omkeysArr[:,0] == string) & (self.omkeysArr[:,1] == om)
+            else:
+                mask = (self.omkeysArr[:,0] == string) & (self.omkeysArr[:,1] == om) & (self.omkeysArr[:,2] == pmt)
 
-        if zShift is None:
-            zShift = self.zShift
+            inds = np.arange(len(self.omkeysArr))[mask]
+            for ind in inds:
+                key = self.omkeys[ind]
+                pmt = self.omgeo[key]
+                ori    = pmt.orientation
+                A = I3OrientationToMatrix(ori)
+                r = np.sqrt(pmt.area/np.pi)
+                pmtDir = A[:,2]
+                pmtCenter = np.array(pmt.position)
+                pmtCenter[2] += self.zShift*pmtDir[2]/abs(pmtDir[2])
 
-        circles = []
-        inds = np.arange(len(self.omkeysArr))[mask]
-        for ind in inds:
-            key = self.omkeys[ind]
-            pmt = self.omgeo[key]
-            ori    = pmt.orientation
-            A = I3OrientationToMatrix(ori)
-            r = np.sqrt(pmt.area/np.pi)
-            pmtDir = A[:,2]
-            pmtCenter = np.array(pmt.position)
-            pmtCenter[2] += zShift*pmtDir[2]/abs(pmtDir[2])
+                Cpmt = make_circle(center=pmtCenter, r=r, rotation=A, N=N)
+                q = np.hstack([pmtCenter, pmtDir])
 
-            Cpmt = make_circle(center=pmtCenter, r=r, rotation=A, N=N)
-            circles.append(Cpmt)
-        return circles
+                ax.plot(*Cpmt.T, c="g")
+                ax.quiver(*q, length=qlength)
+
+            set_axes_equal(ax)
 
 
+        def get_pmt_circles(self, string=1, om=1, pmt=None, N=50, qlength=0.02, zShift=None):
+            if pmt is None:
+                mask = (self.omkeysArr[:,0] == string) & (self.omkeysArr[:,1] == om)
+            else:
+                mask = (self.omkeysArr[:,0] == string) & (self.omkeysArr[:,1] == om) & (self.omkeysArr[:,2] == pmt)
+
+            if zShift is None:
+                zShift = self.zShift
+
+            circles = []
+            inds = np.arange(len(self.omkeysArr))[mask]
+            for ind in inds:
+                key = self.omkeys[ind]
+                pmt = self.omgeo[key]
+                ori    = pmt.orientation
+                A = I3OrientationToMatrix(ori)
+                r = np.sqrt(pmt.area/np.pi)
+                pmtDir = A[:,2]
+                pmtCenter = np.array(pmt.position)
+                pmtCenter[2] += zShift*pmtDir[2]/abs(pmtDir[2])
+
+                Cpmt = make_circle(center=pmtCenter, r=r, rotation=A, N=N)
+                circles.append(Cpmt)
+            return circles
+except:
+    pass
 
 def plot_dir_scan(dirScan, Geo, probName, cmap="plasma"):
     from numpy.linalg import norm
