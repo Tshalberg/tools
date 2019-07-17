@@ -375,7 +375,8 @@ def plot_llh_points_single(data, oss, k, label):
     plt.ylabel("llh")
     plt.title("Seed: " + label)
 
-def plot_LLH_scan(data, event, pair, fit, N=30, vmax=30, figname="LLH_scan", draw_minimizer=False, draw_numbers=False):
+def plot_LLH_scan(data, event, pair, fit, N=30, vmax=30, figfolder="/home/thomas/Documents/master_thesis/DirectReco/ICU/figures/LLH_scans/", 
+                  figname="LLH_scan", draw_minimizer=False, draw_numbers=False):
     from scipy import stats
     # Get the 2 scan parameters
     p1 = pair.split("_")[0]
@@ -392,6 +393,7 @@ def plot_LLH_scan(data, event, pair, fit, N=30, vmax=30, figname="LLH_scan", dra
         p1s.append(p[p1])
         p2s.append(p[p2])
 
+
     # Get true parameters
     # xtrue = dat[i]["MCNeutrino"][p1].values[0]
     # ytrue = dat[i]["MCNeutrino"][p2].values[0]
@@ -401,8 +403,9 @@ def plot_LLH_scan(data, event, pair, fit, N=30, vmax=30, figname="LLH_scan", dra
     # Rearange into grids
     p1s = np.array(p1s)
     p2s = np.array(p2s)
+    print p1, p1s.min(), p1s.max(), p2, p2s.min(), p2s.max()
+    
     llhs = np.array(llhs)
-
     llhs.resize((N, N))
 
     p1s.resize((N, N))
@@ -498,7 +501,7 @@ def plot_LLH_scan(data, event, pair, fit, N=30, vmax=30, figname="LLH_scan", dra
     plt.title(figname + ", event: {}".format(event))
     plt.legend()
     plt.tight_layout()
-    plt.savefig("plots/LLH_scans/{}_{}_{}_{}".format(figname, event, p1, p2))
+    plt.savefig(figfolder + "{}_{}_{}_{}".format(figname, event, p1, p2))
 
 
 

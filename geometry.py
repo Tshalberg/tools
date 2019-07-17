@@ -257,8 +257,9 @@ def I3DirToVec(I3Dir):
 
 try:
     class I3Geometry():
-        from loading import load_I3Geometry
+        
         def __init__(self, fn):
+            from loading import load_I3Geometry
             omgeo, modulegeo = load_I3Geometry(fn)
             self.omgeo = omgeo
             self.modulegeo = modulegeo
