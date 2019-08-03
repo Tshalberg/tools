@@ -62,6 +62,8 @@ def sort_files(files, mode=0):
     elif mode == 2:
         numbs = np.array([re.findall(r"(?<=_fit_)\d*", f)[0] for f in files], dtype=int)
     elif mode == 3:
+        numbs = np.array([re.findall(r"(?<=_llh_)\d*", f)[0] for f in files], dtype=int)
+    elif mode == 4:
         numbs = np.array([re.findall(r"(?<=_0_)\d*", f)[0] for f in files], dtype=int)
     elif type(mode) == str:
         numbs = np.array([re.findall(mode, f)[0] for f in files], dtype=int)
@@ -78,10 +80,12 @@ def load_folder(folder, specific_keys=None, pulse=False, verbose=False, mode=Non
         files = sort_files(files, mode=1)
     elif "_fit_" in files[0]:
         files = sort_files(files, mode=2)
+    elif "_llh_" in files[0]:
+        files = sort_files(files, mode=3)
     elif mode is not None:
         files = sort_files(files, mode=mode)
     else:
-        files = sort_files(files, mode=3)
+        files = sort_files(files, mode=4)
 
     all_data =[]
     err_files = []
@@ -107,12 +111,12 @@ def load_folder(folder, specific_keys=None, pulse=False, verbose=False, mode=Non
     return all_data
 
 
-def load_multiple_folders(folders, specific_keys=None, pulse=False, verbose=False):
+def load_multiple_folders(folders, specific_keys=None, pulse=False, verbose=False, mode=None):
     data = dict()
     # Loop through folders
     for label in folders.keys():
         folder = folders[label]
-        data[label] = load_folder(folder, specific_keys, pulse, verbose)
+        data[label] = load_folder(folder, specific_keys, pulse, verbose, mode)
         print "Loaded folder: ", label, "\n"
 
     return data

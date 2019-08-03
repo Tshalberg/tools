@@ -81,32 +81,46 @@ def plot_resolutions(As, Bs, params, figname, bins=20):
 
 ######
 
-def poisson_llh(x, mu, deltamu=1e-1):
+def poisson_llh(x, mu, deltamu=1e-1, vectorCalc=True):
     from scipy.special import loggamma as lgamma
     llh = 0
-    for i in range(len(x)):
-        if mu[i] > 0:
-            llh += x[i] * np.log(mu[i]) - mu[i] - lgamma(x[i] + 1)
-        else:
-            llh += x[i] * np.log(deltamu) - mu[i] - lgamma(x[i] + 1)
-    return llh
+    if vectorCalc:
+        mask_mu = mu != 0
+        llh += np.sum(x[mask_mu]*np.log(mu[mask_mu]) - mu[mask_mu] - lgamma(x[mask_mu] + 1))
+        llh += np.sum(x[~mask_mu] * np.log(deltamu) - mu[~mask_mu] - lgamma(x[~mask_mu] + 1))
+        return llh
+    else:
+        for i in range(len(x)):
+            if mu[i] > 0:
+                llh += x[i] * np.log(mu[i]) - mu[i] - lgamma(x[i] + 1)
+            else:
+                llh += x[i] * np.log(deltamu) - mu[i] - lgamma(x[i] + 1)
+        return llh
 
 
-def LLH_dima(x, mu, os) :
+def LLH_dima(x, mu, os, deltamu=1e-1, vectorCalc=True) :
+    from scipy.special import loggamma as lgamma
     x = x.copy()
     mu = mu.copy()
     '''
     Calculate dima LLH
     '''
-#    print x , mu
     llh = 0
-    for i in range(len(x)):
-        mu_dima = (os*mu[i]+x[i])/(os+1)
-        if mu[i] != 0:
-            llh += os*mu[i]*np.log(mu_dima/mu[i])
-        
-        if x[i] != 0:
-            llh += x[i]*np.log(mu_dima/x[i])
+    if vectorCalc:
+        mu_dima = (os*mu+x)/(os+1)
+        mask_mu = mu != 0
+        mask_x = x != 0
+        llh += np.sum(os*mu[mask_mu]*np.log(mu_dima[mask_mu]/mu[mask_mu]))
+        llh += np.sum(x[mask_x]*np.log(mu_dima[mask_x]/x[mask_x]))
+        llh += np.sum(x[~mask_mu] * np.log(deltamu) - mu[~mask_mu] - lgamma(x[~mask_mu] + 1))
+    else:
+        for i in range(len(x)):
+            mu_dima = (os*mu[i]+x[i])/(os+1)
+            if mu[i] != 0:
+                llh += os*mu[i]*np.log(mu_dima/mu[i])
+            
+            if x[i] != 0:
+                llh += x[i]*np.log(mu_dima/x[i])
 
     return -llh
 

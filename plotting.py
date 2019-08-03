@@ -16,23 +16,24 @@ import os
 # mpl.rcParams['font.size'] = 15
 # np.set_printoptions(suppress=True)
 
-def calc_bands(fit):
-    lower = np.percentile(fit, 16)
+def calc_bands(fit, conf=90):
+    # print 1-conf
+    lower = np.percentile(fit, (100-conf)/2)
     mid = np.percentile(fit, 50)
-    upper = np.percentile(fit, 84)
+    upper = np.percentile(fit, conf + (100-conf)/2)
     return lower, mid, upper
 
-def plot_bands(fit, ax, color=None):
+def plot_bands(fit, ax, color=None, lw=2):
     lower, mid, upper = calc_bands(fit)
     # print "%.7s, %.7s, %.7s" % (lower, mid, upper)
     if color is None:
-        ax.axvline(lower, 0, 1, ls="--", label="1$\sigma$ [%.5s, %.5s, %.5s]" % (lower, upper, upper-lower), c="k")
-        ax.axvline(mid, 0, 1, ls="-", label="mean: %.5s" % mid, c="k")
-        ax.axvline(upper, 0, 1, ls="--", label="", c="k")
+        ax.axvline(lower, 0, 1, ls="--", lw=lw, label="1$\sigma$ [%.5s, %.5s, %.5s]" % (lower, upper, upper-lower), c="k")
+        ax.axvline(mid, 0, 1, ls="-", lw=lw, label="mean: %.5s" % mid, c="k")
+        ax.axvline(upper, 0, 1, ls="--", lw=lw, label="", c="k")
     else:
-        ax.axvline(lower, 0, 1, ls="--", label="1$\sigma$ [%.5s, %.5s, %.5s]" % (lower, upper, upper-lower), c=color)
-        ax.axvline(mid, 0, 1, ls="-", label="mean: %.5s" % mid, c=color)
-        ax.axvline(upper, 0, 1, ls="--", label="", c=color)       
+        ax.axvline(lower, 0, 1, ls="--", lw=lw, label="1$\sigma$ [%.5s, %.5s, %.5s]" % (lower, upper, upper-lower), c=color)
+        ax.axvline(mid, 0, 1, ls="-", lw=lw, label="mean: %.5s" % mid, c=color)
+        ax.axvline(upper, 0, 1, ls="--", lw=lw, label="", c=color)       
 
 def plot_1D_compare(fits, labels, bins_dict, pdf_name="1Dhist_plot", Nbins=100, params_print=None):
 
@@ -241,7 +242,7 @@ def check_dir(path):
     if not os.path.exists(folder):
         os.makedirs(folder)
 
-def plot_minimizer(data, k, seed="Monopod_best", llh_truth=None, string="minimizerplot", energy_only=False): #, llhs):
+def plot_minimizer(data, k, seed="Monopod_best", llh_truth=None, string="minimizerplot", energy_only=False, MAP="plasma", showplot=True): #, llhs):
     
     events = data["MCNeutrino"].Event.unique()
     event = events[k]
@@ -249,16 +250,16 @@ def plot_minimizer(data, k, seed="Monopod_best", llh_truth=None, string="minimiz
         params = ["E"]
     else:
         params = ["x", "y", "z", "t", "azi", "zen", "E"]
-    MAP = "plasma"
     
+    oversampling = data["InfoGeneral"]["Oversampling"].values[0]
 
-    
+    figfolder = "/home/thomas/Documents/master_thesis/DirectReco/ICU/figures/MinizerPlots/"
 
     if not energy_only:
-        figname = 'plots/minimizer_plots/{}_{}.pdf'.format(string, event)
+        figname = figfolder + '/{}_{}_{}.pdf'.format(event, string, oversampling)
         pdf = PdfPages(figname)
     else:
-        figname = 'plots/minimizer_plots/{}_{}.png'.format(string, event)
+        figname = figfolder + '/{}_{}_{}.png'.format(event, string, oversampling)
 
     check_dir(figname)
     
@@ -297,10 +298,36 @@ def plot_minimizer(data, k, seed="Monopod_best", llh_truth=None, string="minimiz
         llh_n = norm(llh)
 
         NPOINTS = len(x)
-        fig = plt.figure(figsize=(12,8))
-        N = 9
-        ax1 = plt.subplot2grid((N,N), (0,0), colspan=N, rowspan=N-2)
-        ax2 = plt.subplot2grid((N,N), (N-2,0), colspan=N)
+        fig = plt.figure(figsize=(14,8))
+        N = 12
+        # ax1 = plt.subplot2grid((N,N), (0,0), colspan=N, rowspan=N-2)
+        # ax2 = plt.subplot2grid((N,N), (N-2,0), colspan=N)
+
+        ax1 = plt.subplot2grid((N,N), (0,0), colspan=N-3, rowspan=N-2)
+        ax2 = plt.subplot2grid((N,N), (N-1,0), colspan=N-3, rowspan=N)
+
+        colLabels = ["Parameter", "Value"]
+        info = data["InfoGeneral"].copy()
+        info["RunTime"] = np.round(info["RunTime"]/3.6e6, 2)
+        infoLabels = ["Oversampling", "RunTime", "DIMA", "MeanSPE", "PhotonsPerBin"]
+        infoLabelDict = {"Oversampling":"OS", "RunTime":"Time[Hrs]", "DIMA":"DIMA", "MeanSPE":"SPE", "PhotonsPerBin":"PPB"}
+        cellText = [(infoLabelDict[l], info[l].values[0]) for l in infoLabels]
+
+        cellTrue = xt.values.round(2)[0]
+        cellFit  = x.iloc[-1].round(2)
+        cellSeed = xb.values.round(2)[0]
+        cellText += [(r"$%s_{true}$"%p, cellTrue), (r"$%s_{fit}$"%p, cellFit), (r"$%s_{seed}$"%p, cellSeed)]
+        cellText += [(r"$\Delta %s_{fit}$"%p, np.round(cellTrue-cellFit, 2)), (r"$\Delta %s_{seed}$"%p, np.round(cellTrue-cellSeed, 2))]
+
+        tb = ax1.table(cellText=cellText, colWidths=[.4,.3], 
+               colLabels=colLabels, bbox=[1.05, .4, .25, .62])
+
+        prop = tb.properties()
+        cells = prop["child_artists"]
+        for c in cells:
+            c.set_linewidth(2)
+            c._loc = "left"
+            c.set_fontsize(15)
 
 
         color=cm(llh_n)
@@ -326,6 +353,8 @@ def plot_minimizer(data, k, seed="Monopod_best", llh_truth=None, string="minimiz
             plt.savefig( figname, dpi=300)
         else:
             pdf.savefig()
+        if not showplot:
+            plt.close()
     if not energy_only:
         pdf.close()
 
@@ -378,6 +407,10 @@ def plot_llh_points_single(data, oss, k, label):
 def plot_LLH_scan(data, event, pair, fit, N=30, vmax=30, figfolder="/home/thomas/Documents/master_thesis/DirectReco/ICU/figures/LLH_scans/", 
                   figname="LLH_scan", draw_minimizer=False, draw_numbers=False):
     from scipy import stats
+
+
+    oversampling = data[event][pair][0]["InfoGeneral"]["Oversampling"].values[0]
+
     # Get the 2 scan parameters
     p1 = pair.split("_")[0]
     p2 = pair.split("_")[1]
@@ -498,12 +531,131 @@ def plot_LLH_scan(data, event, pair, fit, N=30, vmax=30, figfolder="/home/thomas
     # plt.xlim(p1s_contour.min(), p1s_contour.max())
     # plt.ylim(p2s_contour.min(), p2s_contour.max())
 
-    plt.title(figname + ", event: {}".format(event))
+    plt.title(figname + ", event: {}, {}".format(event, oversampling))
     plt.legend()
     plt.tight_layout()
-    plt.savefig(figfolder + "{}_{}_{}_{}".format(figname, event, p1, p2))
+    plt.savefig(figfolder + "{}_{}_{}_{}_{}".format(figname, event, p1, p2, oversampling))
 
+def plot_LLH_scan_mergedhdf5(data, event, pair, fit=None, N=15, vmax=30, figfolder="/home/thomas/Documents/master_thesis/DirectReco/ICU/figures/LLH_scans/", 
+                  figname="LLH_scan", draw_minimizer=False, draw_numbers=False):
+    from scipy import stats
 
+    data = data[event]
+    oversampling = data["InfoGeneral"]["Oversampling"]
+    # Get the 2 scan parameters
+    p1 = pair.split("_")[0]
+    p2 = pair.split("_")[1]
+
+    llhs = []
+    # Extract parameters from files
+    p1s = data["MonopodFitFinalMinimizerSteps"][p1].values
+    p2s = data["MonopodFitFinalMinimizerSteps"][p2].values
+    llhs = -data["MonopodFitFinalMinimizerSteps"]["speed"]
+    
+    # Get true parameters
+    xtrue = data["I3MCTree"][p1]
+    ytrue = data["I3MCTree"][p2]
+    
+    # Rearange into grids
+    p1s = np.array(p1s)
+    p2s = np.array(p2s)
+    print p1, p1s.min(), p1s.max(), p2, p2s.min(), p2s.max()
+    
+    llhs = np.array(llhs)
+    llhs.resize((N, N))
+
+    p1s.resize((N, N))
+    p1s_contour = p1s.copy()
+    p1sdiff = p1s[1,0] - p1s[0,0]
+    p1s = np.append(p1s[:,0], p1s[-1,0]+p1sdiff)
+    p1s = np.array([p1s for i in range(N+1)]).T
+
+    p2s.resize((N, N))
+    p2s_contour = p2s.copy()
+    p2sdiff = p2s[0,1] - p2s[0,0]
+    p2s = np.append(p2s[0,:], p2s[0,-1]+p2sdiff)
+    p2s = np.array([p2s for i in range(N+1)])
+
+    # Calculate precise sigma percentage 
+    sig1 = 1-stats.norm.cdf(-1)*2
+    sig2 = 1-stats.norm.cdf(-2)*2
+    sig3 = 1-stats.norm.cdf(-3)*2
+    # Find the contour levels for degrees of freedom = df
+    df = 7
+    l1, l2, l3 = stats.chi2.ppf(sig1, df), stats.chi2.ppf(sig2, df), stats.chi2.ppf(sig3, df)
+
+    # Calculate the Log-likelihood ratio for the grid
+    LLR = 2*(llhs - llhs.min())
+    LLR_min = LLR.min()
+    levels = [LLR_min + l1, LLR_min + l2, LLR_min + l3]
+    print levels
+
+    # Find the best point in the grid
+    xi, yi = np.where(LLR == LLR.min())
+    bestx, besty = p1s[xi, yi], p2s[xi, yi]
+
+    if fit is not None:
+        # Extract parameters from the best fit
+        minSteps = fit["MonopodFitFinalMinimizerSteps"]
+        x = minSteps[p1].values
+        y = minSteps[p2].values
+        llhs_fit = -minSteps["speed"].values
+        llh_seed = llhs_fit[0]
+        llh_best_fit = llhs_fit[-1]
+        event = minSteps.Event.values[0]
+        print "LLH Best-Fit: {}, LLH Scan: {}".format(llh_best_fit, llhs.min())
+
+    # Estimate LLH at truth
+    # print p1s.shape, p2s.shape, xtrue, ytrue
+    mat = np.sqrt((p1s - xtrue)**2 + (p2s - ytrue)**2)
+    index = np.where(mat == mat.min())
+    LLHtrue = llhs[index[0], index[1]][0]
+
+    fig = plt.figure(figsize=(16,9))
+    ax = plt.axes()
+    plt.contour(p1s_contour, p2s_contour, LLR, levels=levels, colors=["purple", "blue", "green"])
+    plt.pcolormesh(p1s-p1sdiff/2., p2s-p2sdiff/2., LLR, cmap="hot_r", vmax=vmax)
+
+    if draw_numbers:
+        for (i, j), z in np.ndenumerate(llhs):
+            # print p1s[i, j], p2s[i, j], z
+            ax.text(p1s[i, j], p2s[i, j], '{:0.1f}'.format(z), ha='center', va='center', color="c", fontsize=10)
+
+    cb = plt.colorbar()
+    plt.xlabel(p1)
+    plt.ylabel(p2)
+    cb.ax.set_ylabel(r"2$\Delta$LLH")
+
+    if draw_minimizer:
+        bestxs = [x[0]]
+        bestys = [y[0]]
+        bestLLHs = [llhs_fit[0]]
+        for l, x_, y_ in zip(llhs_fit, x, y):
+            if l < bestLLHs[-1]:
+                bestLLHs.append(l)
+                bestxs.append(x_)
+                bestys.append(y_)
+        cmap1 = mpl.cm.get_cmap("cool_r") #cool_r
+        cmap2 = mpl.cm.get_cmap("plasma")
+        colors_llh = cmap1(np.linspace(0, 1, len(bestxs)))
+        colors_move = cmap2(np.linspace(0, 1, len(bestxs)))
+        plt.scatter(bestxs, bestys, c=colors_llh, zorder=3)
+        for i in range(len(bestxs)):
+            plt.plot(bestxs[i:i+2], bestys[i:i+2], color=colors_move[i], lw=2)
+
+    if fit is not None:
+        plt.scatter(x[0], y[0], marker="x", s=100, lw=5, color="g", zorder=3, label="Seed [%.5s]" % (llh_seed))
+        plt.scatter(x[-1], y[-1], marker="x", s=100, lw=5, color="b", zorder=3, label="BestFit [%.5s]" % (llh_best_fit))
+    plt.scatter(xtrue, ytrue, marker="x", s=100, lw=5, color="purple", zorder=3, label="Truth [~%.5s], E [%.5s]" % (LLHtrue, ytrue))
+    plt.scatter(bestx, besty, marker="x", s=100, lw=5, color="k", zorder=3, label="MinLLHScan [%.5s], E [%.5s]" % (llhs.min(), besty[0]))
+
+    print "Etrue/Ebest: ", ytrue/besty[0]
+    print bestx, besty
+
+    plt.title(figname + ", event: {}, {}".format(event, oversampling))
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(figfolder + "{}_{}_{}_{}_{}".format(figname, event, p1, p2, oversampling))
 
 def plot_LLH_scan_llhrepeat(data, event, pair, N=30, vmax=30, figname="LLH_scan", draw_minimizer=False, draw_numbers=False):
     from scipy import stats

@@ -78,3 +78,44 @@ def sort_by_oversampling(data):
         data_all.append(data_event[oversampling])
         
     return data_all, oss
+
+def merge_hdf5(infiles,output,verbose=False):
+    '''
+    Use icetray tools from tableio and hdfwriter
+    to merge hdf5 that have been written out of i3
+    frame information.
+    
+    This script is derived from merge.py, which is available 
+    on the hdfwriter project. More information below:
+
+    # copyright  (C) 2010
+    # The Icecube Collaboration
+    # 
+    # $Id: merge.py 136825 2015-08-25 07:39:27Z jvansanten $
+    # 
+    # @version $Revision: 136825 $
+    # @date $LastChangedDate: 2015-08-25 03:39:27 -0400 (Tue, 25 Aug 2015) $
+    # @author Jakob van Santen <vansanten@wisc.edu> Last changed by: $LastChangedBy: jvansanten $
+    '''
+
+    from icecube import icetray,tableio
+    from icecube.tableio import I3TableTranscriber
+    from icecube.hdfwriter import I3HDFTableService
+        
+
+    inservices = [(I3HDFTableService,(infile,1,'r')) for infile in infiles]
+
+    outservice = I3HDFTableService(output,1,'w')
+
+
+    for ctor,args in inservices:
+        if verbose:
+            print('Merging %s'%args[0])
+        inservice = ctor(*args)
+        scribe = I3TableTranscriber(inservice,outservice)
+        scribe.Execute()
+        inservice.Finish()
+
+    outservice.Finish()
+
+    print('Merger completed. Pleasure workin\' with ya!')
